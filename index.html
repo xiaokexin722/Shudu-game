@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>专属数独 · 成就版</title>
+    <style>
+        :root {
+            --bg: #f5f0e8;
+            --card: #fff;
+            --text: #333;
+            --primary: #8b5e3c;
+            --accent: #d4a574;
+            --cell-bg: #faf7f2;
+            --cell-selected: #e8d5c4;
+            --cell-related: #f0e6d9;
+            --cell-same-num: #e0d0c0;
+            --cell-error: #ffd4d4;
+            --cell-fixed: #5c3d2e;
+            --border: #ccc;
+        }
+
+        .dark {
+            --bg: #1a1a2e;
+            --card: #16213e;
+            --text: #eee;
+            --primary: #e2a76f;
+            --accent: #c08a5c;
+            --cell-bg: #1f2b3a;
+            --cell-selected: #2a3a4a;
+            --cell-related: #243040;
+            --cell-same-num: #2a3d50;
+            --cell-error: #5c2020;
+            --cell-fixed: #e2a76f;
+            --border: #333;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+            transition: background 0.3s;
+        }
+
+        .container {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 20px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: background 0.3s;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            background: var(--cell-bg);
+            color: var(--text);
+        }
+
+        .btn:active { transform: scale(0.95); }
+        .btn.primary { background: var(--primary); color: #fff; }
+
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .timer { font-variant-numeric: tabular-nums; }
+        .mistakes { color: #e74c3c; }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            aspect-ratio: 1;
+            margin-bottom: 15px;
+        }
+
+        .cell {
+            background: var(--cell-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background 0.15s;
+            aspect-ratio: 1;
+        }
+
+        .cell.fixed { color: var(--cell-fixed); font-weight: 700; }
+        .cell.selected { background: var(--cell-selected); }
+        .cell.related { background: var(--cell-related); }
+        .cell.same-num { background: var(--cell-same-num); }
+        .cell.error { background: var(--cell-error); color: #c0392b; }
+        .cell:nth-child(3n) { border-right: 2px solid var(--border); }
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--border); }
+
+        .num-pad {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .num-btn {
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--cell-bg);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text);
+            transition: all 0.2s;
+        }
+
+        .num-btn:active { transform: scale(0.9); background: var(--accent); }
+        .num-btn.erase { color: #e74c3c; }
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .difficulty-select {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .diff-btn {
+            padding: 6px 14px;
+            border-radius: 15px;
+            border: 2px solid var(--border);
+            background: var(--cell-bg);
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text);
+            transition: all 0.2s;
+        }
+
+        .diff-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        /* 成就与弹窗 */
+        .achievements-btn {
+            background: #f0d78c;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #5c3d2e;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            padding: 20px;
+        }
+
+        .modal.active { display: flex; }
+
+        .modal-content {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px; right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .achievement-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .achievement-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            background: var(--cell-bg);
+            opacity: 0.5;
+            filter: grayscale(100%);
+            transition: all 0.3s;
+        }
+
+        .achievement-item.unlocked {
+            opacity: 1;
+            filter: none;
+            background: #fef9e7;
+            border: 1px solid var(--accent);
+        }
+
+        .achievement-icon {
+            font-size: 2rem;
+            min-width: 40px;
+        }
+
+        .achievement-info {
+            flex: 1;
+        }
+
+        .achievement-name {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .achievement-desc {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .win-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .win-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .win-emoji { font-size: 4rem; margin-bottom: 10px; }
+        .win-title { font-size: 1.5rem; font-weight: 700; color: var(--primary); margin-bottom: 10px; }
+        .win-stats { color: #888; margin-bottom: 15px; line-height: 1.8; }
+
+        @media (max-width: 400px) {
+            .cell { font-size: 1rem; }
+            .num-btn { padding: 10px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="title">🧩 专属数独</span>
+            <div class="controls">
+                <button class="btn achievements-btn" onclick="openAchievements()">🏆 成就</button>
+                <button class="btn" onclick="toggleTheme()" title="切换主题">🎨</button>
+                <button class="btn" onclick="newGame()">🔄 新游戏</button>
+            </div>
+        </div>
+
+        <div class="difficulty-select">
+            <button class="diff-btn active" onclick="setDifficulty('easy', this)">🌱 简单</button>
+            <button class="diff-btn" onclick="setDifficulty('medium', this)">🌿 中等</button>
+            <button class="diff-btn" onclick="setDifficulty('hard', this)">🌳 困难</button>
+            <button class="diff-btn" onclick="setDifficulty('expert', this)">🏔️ 专家</button>
+        </div>
+
+        <div class="info-bar">
+            <span class="timer" id="timer">⏱ 00:00</span>
+            <span class="mistakes" id="mistakes">❌ 0/3</span>
+            <span>💡 <span id="remaining">81</span></span>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="num-pad" id="numPad"></div>
+
+        <div class="action-bar">
+            <button class="btn" onclick="undo()">↩ 撤销</button>
+            <button class="btn" onclick="toggleNotes()">✏️ 笔记</button>
+            <button class="btn" onclick="eraseCell()">🧹 擦除</button>
+            <button class="btn" onclick="showHint()">💡 提示</button>
+        </div>
+    </div>
+
+    <!-- 成就弹窗 -->
+    <div class="modal" id="achievementsModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeAchievements()">✕</button>
+            <h2 style="color: var(--primary);">🏆 成就殿堂</h2>
+            <div class="achievement-list" id="achievementList"></div>
+        </div>
+    </div>
+
+    <!-- 胜利弹窗 -->
+    <div class="win-overlay" id="winOverlay">
+        <div class="win-card">
+            <div class="win-emoji">🎉</div>
+            <div class="win-title">恭喜通关！</div>
+            <div class="win-stats" id="winStats"></div>
+            <button class="btn primary" onclick="newGame(); document.getElementById('winOverlay').style.display='none'">再来一局</button>
+            <button class="btn" onclick="shareResult()">📤 分享战绩</button>
+        </div>
+    </div>
+
+    <script>
+        // ---------- 游戏核心变量 ----------
+        let board = [];
+        let solution = [];
+        let selectedCell = null;
+        let difficulty = 'easy';
+        let timerInterval = null;
+        let seconds = 0;
+        let mistakes = 0;
+        let maxMistakes = 3;
+        let history = [];
+        let notesMode = false;
+        let notes = {};
+
+        // 统计数据（存储在localStorage）
+        let stats = {
+            totalGames: 0,
+            wins: 0,
+            currentStreak: 0,
+            bestStreak: 0,
+            totalNotesUsed: 0,
+            totalHintsUsed: 0,
+        };
+
+        // 成就列表（条件检查函数）
+        const ACHIEVEMENTS = [
+            { id: 'first_win', name: '初出茅庐', desc: '完成第一局游戏', icon: '🌟', check: () => stats.wins >= 1 },
+            { id: 'win_10', name: '数独学徒', desc: '累计完成10局', icon: '📚', check: () => stats.wins >= 10 },
+            { id: 'win_50', name: '数独大师', desc: '累计完成50局', icon: '🎓', check: () => stats.wins >= 50 },
+            { id: 'streak_3', name: '连胜新星', desc: '连续完成3局', icon: '🔥', check: () => stats.currentStreak >= 3 },
+            { id: 'streak_7', name: '势不可挡', desc: '连续完成7局', icon: '⚡', check: () => stats.currentStreak >= 7 },
+            { id: 'no_mistake', name: '完美无瑕', desc: '零错误通关', icon: '💎', check: () => (window.lastWinMistakes || 999) === 0 },
+            { id: 'speed_easy', name: '闪电手', desc: '简单模式2分钟内通关', icon: '⏱️', check: () => window.lastWinDifficulty === 'easy' && window.lastWinTime <= 120 },
+            { id: 'speed_medium', name: '快枪手', desc: '中等模式3分钟内通关', icon: '🚀', check: () => window.lastWinDifficulty === 'medium' && window.lastWinTime <= 180 },
+            { id: 'notes_master', name: '笔记达人', desc: '累计使用笔记100次', icon: '✏️', check: () => stats.totalNotesUsed >= 100 },
+            { id: 'hint_lover', name: '提示依赖', desc: '累计使用提示10次', icon: '💡', check: () => stats.totalHintsUsed >= 10 },
+            { id: 'all_difficulties', name: '全能选手', desc: '完成所有难度至少一局', icon: '🏅', check: () => window.completedDifficulties && window.completedDifficulties.has('easy') && window.completedDifficulties.has('medium') && window.completedDifficulties.has('hard') && window.completedDifficulties.has('expert') },
+            { id: 'clean_eraser', name: '橡皮擦专家', desc: '单局使用撤销20次', icon: '🧹', check: () => (window.lastWinUndos || 0) >= 20 },
+            { id: 'dark_mode', name: '暗夜行者', desc: '使用暗黑模式完成一局', icon: '🌙', check: () => window.lastWinDarkMode === true },
+            { id: 'sharer', name: '广而告之', desc: '分享一次战绩', icon: '📤', check: () => window.hasShared === true },
+            { id: 'comeback', name: '绝地反击', desc: '错误2次后仍通关', icon: '🛡️', check: () => (window.lastWinMistakes || 0) >= 2 },
+            { id: 'speed_expert', name: '专家克星', desc: '专家模式通关', icon: '🏔️', check: () => window.lastWinDifficulty === 'expert' },
+        ];
+
+        // 用于成就判断的临时变量
+        window.lastWinMistakes = 0;
+        window.lastWinTime = 0;
+        window.lastWinDifficulty = '';
+        window.lastWinUndos = 0;
+        window.lastWinDarkMode = false;
+        window.hasShared = false;
+        window.completedDifficulties = new Set();
+
+        const DIFFICULTY_CLUES = { easy: 40, medium: 32, hard: 26, expert: 20 };
+
+        // ---------- 本地存储 ----------
+        function saveStats() {
+            localStorage.setItem('sudoku-stats', JSON.stringify(stats));
+            localStorage.setItem('sudoku-completed-diffs', JSON.stringify([...window.completedDifficulties]));
+            localStorage.setItem('sudoku-unlocked-achievements', JSON.stringify(getUnlockedIds()));
+        }
+
+        function loadStats() {
+            const saved = localStorage.getItem('sudoku-stats');
+            if (saved) stats = JSON.parse(saved);
+            const diffs = localStorage.getItem('sudoku-completed-diffs');
+            if (diffs) window.completedDifficulties = new Set(JSON.parse(diffs));
+            if (localStorage.getItem('sudoku-has-shared')) window.hasShared = true;
+        }
+
+        function getUnlockedIds() {
+            return ACHIEVEMENTS.filter(a => a.check()).map(a => a.id);
+        }
+
+        // 检查并解锁新成就（胜利时调用）
+        function checkAchievements() {
+            const unlockedBefore = new Set(getUnlockedIds());
+            // 重新计算条件（此时lastWin变量已更新）
+            const newUnlocked = ACHIEVEMENTS.filter(a => a.check() && !unlockedBefore.has(a.id));
+            if (newUnlocked.length > 0) {
+                const names = newUnlocked.map(a => a.icon + ' ' + a.name).join(', ');
+                setTimeout(() => alert(`🎉 新成就解锁！\n${names}`), 500);
+            }
+            saveStats();
+        }
+
+        // ---------- 成就UI ----------
+        function openAchievements() {
+            const list = document.getElementById('achievementList');
+            list.innerHTML = ACHIEVEMENTS.map(a => {
+                const unlocked = a.check();
+                return `
+                    <div class="achievement-item ${unlocked ? 'unlocked' : ''}">
+                        <div class="achievement-icon">${a.icon}</div>
+                        <div class="achievement-info">
+                            <div class="achievement-name">${a.name}</div>
+                            <div class="achievement-desc">${a.desc}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('achievementsModal').classList.add('active');
+        }
+
+        function closeAchievements() {
+            document.getElementById('achievementsModal').classList.remove('active');
+        }
+
+        // ---------- 游戏设置 ----------
+        function setDifficulty(diff, btn) {
+            difficulty = diff;
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            newGame();
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('sudoku-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        if (localStorage.getItem('sudoku-theme') === 'dark') {
+            document.body.classList.add('dark');
+        }
+
+        // ---------- 数独生成 ----------
+        function generateCompleteBoard() {
+            const grid = Array(9).fill(null).map(() => Array(9).fill(0));
+            fillGrid(grid);
+            return grid;
+        }
+
+        function fillGrid(grid) {
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (grid[row][col] === 0) {
+                        const nums = shuffle([1,2,3,4,5,6,7,8,9]);
+                        for (const num of nums) {
+                            if (isValid(grid, row, col, num)) {
+                                grid[row][col] = num;
+                                if (fillGrid(grid)) return true;
+                                grid[row][col] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function isValid(grid, row, col, num) {
+            for (let i = 0; i < 9; i++) {
+                if (grid[row][i] === num) return false;
+                if (grid[i][col] === num) return false;
+            }
+            const boxRow = Math.floor(row / 3) * 3;
+            const boxCol = Math.floor(col / 3) * 3;
+            for (let r = boxRow; r < boxRow + 3; r++) {
+                for (let c = boxCol; c < boxCol + 3; c++) {
+                    if (grid[r][c] === num) return false;
+                }
+            }
+            return true;
+        }
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function createPuzzle(fullGrid, clues) {
+            const puzzle = fullGrid.map(row => [...row]);
+            const cells = [];
+            for (let r = 0; r < 9; r++)
+                for (let c = 0; c < 9; c++)
+                    cells.push({r, c});
+            shuffle(cells);
+            let removed = 81 - clues;
+            for (const {r, c} of cells) {
+                if (removed <= 0) break;
+                puzzle[r][c] = 0;
+                removed--;
+            }
+            return puzzle;
+        }
+
+        function newGame() {
+            clearInterval(timerInterval);
+            seconds = 0;
+            mistakes = 0;
+            history = [];
+            notes = {};
+            notesMode = false;
+            selectedCell = null;
+            updateTimer();
+            updateMistakes();
+            const full = generateCompleteBoard();
+            solution = full;
+            board = createPuzzle(full, DIFFICULTY_CLUES[difficulty]);
+            render();
+            startTimer();
+            document.getElementById('winOverlay').style.display = 'none';
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                updateTimer();
+            }, 1000);
+        }
+
+        function updateTimer() {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            document.getElementById('timer').textContent = `⏱ ${m}:${s}`;
+        }
+
+        function updateMistakes() {
+            document.getElementById('mistakes').textContent = `❌ ${mistakes}/${maxMistakes}`;
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            let remaining = 0;
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    if (board[r][c] !== 0) {
+                        if (solution[r][c] === board[r][c]) {
+                            cell.textContent = board[r][c];
+                            cell.classList.add('fixed');
+                        } else {
+                            cell.textContent = board[r][c];
+                            cell.classList.add('error');
+                        }
+                    } else {
+                        remaining++;
+                        const key = `${r}-${c}`;
+                        if (notes[key] && notes[key].size > 0) {
+                            cell.textContent = [...notes[key]].join('');
+                            cell.style.fontSize = '0.6rem';
+                        }
+                    }
+
+                    if (selectedCell && selectedCell.row === r && selectedCell.col === c) {
+                        cell.classList.add('selected');
+                    }
+                    if (selectedCell && (selectedCell.row === r || selectedCell.col === c ||
+                        (Math.floor(r/3) === Math.floor(selectedCell.row/3) && Math.floor(c/3) === Math.floor(selectedCell.col/3)))) {
+                        cell.classList.add('related');
+                    }
+                    cell.addEventListener('click', () => selectCell(r, c));
+                    boardEl.appendChild(cell);
+                }
+            }
+            document.getElementById('remaining').textContent = remaining;
+        }
+
+        function selectCell(row, col) {
+            selectedCell = { row, col };
+            render();
+        }
+
+        function placeNumber(num) {
+            if (!selectedCell) return;
+            const { row, col } = selectedCell;
+            const key = `${row}-${col}`;
+
+            if (notesMode) {
+                if (!notes[key]) notes[key] = new Set();
+                if (notes[key].has(num)) notes[key].delete(num);
+                else notes[key].add(num);
+                stats.totalNotesUsed++;
+                render();
+                return;
+            }
+
+            if (board[row][col] !== 0 && board[row][col] === num) return;
+
+            history.push({
+                row, col,
+                oldValue: board[row][col],
+                oldNotes: notes[key] ? new Set(notes[key]) : null
+            });
+
+            board[row][col] = num;
+            if (notes[key]) delete notes[key];
+
+            if (solution[row][col] !== num) {
+                mistakes++;
+                updateMistakes();
+                if (mistakes >= maxMistakes) {
+                    clearInterval(timerInterval);
+                    // 失败不更新连胜和统计，只结束计时
+                    alert('😢 错误太多了，游戏结束！');
+                }
+            }
+
+            render();
+            if (isComplete()) {
+                clearInterval(timerInterval);
+                handleWin();
+            }
+        }
+
+        function eraseCell() {
+            if (!selectedCell) return;
+            const { row, col } = selectedCell;
+            if (board[row][col] === 0) return;
+            history.push({
+                row, col,
+                oldValue: board[row][col],
+                oldNotes: notes[`${row}-${col}`] ? new Set(notes[`${row}-${col}`]) : null
+            });
+            board[row][col] = 0;
+            render();
+        }
+
+        function undo() {
+            if (history.length === 0) return;
+            const last = history.pop();
+            board[last.row][last.col] = last.oldValue;
+            const key = `${last.row}-${last.col}`;
+            if (last.oldNotes) notes[key] = last.oldNotes;
+            else delete notes[key];
+            render();
+        }
+
+        function toggleNotes() {
+            notesMode = !notesMode;
+        }
+
+        function showHint() {
+            if (!selectedCell) return;
+            const { row, col } = selectedCell;
+            if (board[row][col] === solution[row][col]) return;
+            history.push({
+                row, col,
+                oldValue: board[row][col],
+                oldNotes: notes[`${row}-${col}`] ? new Set(notes[`${row}-${col}`]) : null
+            });
+            board[row][col] = solution[row][col];
+            if (notes[`${row}-${col}`]) delete notes[`${row}-${col}`];
+            stats.totalHintsUsed++;
+            render();
+            if (isComplete()) {
+                clearInterval(timerInterval);
+                handleWin();
+            }
+        }
+
+        function isComplete() {
+            for (let r = 0; r < 9; r++)
+                for (let c = 0; c < 9; c++)
+                    if (board[r][c] !== solution[r][c]) return false;
+            return true;
+        }
+
+        function handleWin() {
+            // 更新统计变量
+            window.lastWinMistakes = mistakes;
+            window.lastWinTime = seconds;
+            window.lastWinDifficulty = difficulty;
+            window.lastWinUndos = history.length; // 粗略估算撤销次数
+            window.lastWinDarkMode = document.body.classList.contains('dark');
+            window.completedDifficulties.add(difficulty);
+
+            stats.totalGames++;
+            stats.wins++;
+            stats.currentStreak++;
+            if (stats.currentStreak > stats.bestStreak) stats.bestStreak = stats.currentStreak;
+
+            checkAchievements();
+            saveStats();
+            showWin();
+        }
+
+        function showWin() {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            const timeStr = `${m}分${s}秒`;
+            document.getElementById('winStats').innerHTML = `
+                ⏱ 用时：${timeStr}<br>
+                ❌ 错误：${mistakes}次<br>
+                🧩 难度：${difficulty}<br>
+                🔥 评价：${getRank()}
+            `;
+            document.getElementById('winOverlay').style.display = 'flex';
+        }
+
+        function getRank() {
+            if (mistakes === 0 && seconds < 180) return '数独之神 🧠';
+            if (mistakes === 0) return '完美通关 ✨';
+            if (mistakes <= 1) return '非常优秀 👏';
+            if (mistakes <= 3) return '继续加油 💪';
+            return '下次更好 🌱';
+        }
+
+        function shareResult() {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            const text = `🧩 我在「专属数独」通关了！\n📊 难度：${difficulty}\n⏱ 用时：${m}分${s}秒\n❌ 错误：${mistakes}次\n🏆 评价：${getRank()}\n\n来挑战我吧！`;
+            if (navigator.share) {
+                navigator.share({ text }).then(() => {
+                    window.hasShared = true;
+                    localStorage.setItem('sudoku-has-shared', '1');
+                    checkAchievements();
+                });
+            } else {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('战绩已复制！分享给朋友吧');
+                    window.hasShared = true;
+                    localStorage.setItem('sudoku-has-shared', '1');
+                    checkAchievements();
+                });
+            }
+        }
+
+        // 数字键盘
+        function createNumPad() {
+            const pad = document.getElementById('numPad');
+            for (let i = 1; i <= 9; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'num-btn';
+                btn.textContent = i;
+                btn.addEventListener('click', () => placeNumber(i));
+                pad.appendChild(btn);
+            }
+            const erase = document.createElement('button');
+            erase.className = 'num-btn erase';
+            erase.textContent = '⌫';
+            erase.addEventListener('click', eraseCell);
+            pad.appendChild(erase);
+        }
+
+        // 键盘支持
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '1' && e.key <= '9') placeNumber(parseInt(e.key));
+            if (e.key === 'Backspace' || e.key === 'Delete') eraseCell();
+            if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
+            if (e.key === 'n') toggleNotes();
+            if (e.key === 'ArrowUp' && selectedCell) selectCell(Math.max(0, selectedCell.row - 1), selectedCell.col);
+            if (e.key === 'ArrowDown' && selectedCell) selectCell(Math.min(8, selectedCell.row + 1), selectedCell.col);
+            if (e.key === 'ArrowLeft' && selectedCell) selectCell(selectedCell.row, Math.max(0, selectedCell.col - 1));
+            if (e.key === 'ArrowRight' && selectedCell) selectCell(selectedCell.row, Math.min(8, selectedCell.col + 1));
+        });
+
+        // 初始化
+        loadStats();
+        createNumPad();
+        newGame();
+    </script>
+</body>
+</html>
