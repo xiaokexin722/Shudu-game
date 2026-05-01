@@ -506,19 +506,61 @@
             }
             return arr;
         }
-        function createPuzzle(fullGrid, clues) {
-            const puzzle = fullGrid.map(r => [...r]);
-            const cells = [];
-            for (let r=0;r<9;r++) for(let c=0;c<9;c++) cells.push({r,c});
-            shuffle(cells);
-            let removed = 81 - clues;
-            for (const {r,c} of cells) {
-                if (removed <= 0) break;
-                puzzle[r][c] = 0;
-                removed--;
+        // 计算数独解的数量（最多计算到 limit 个解就停止，用于唯一性判断）
+function countSolutions(grid, limit = 2) {
+    let solutions = 0;
+    const boardCopy = grid.map(row => [...row]);
+
+    function solve() {
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                if (boardCopy[r][c] === 0) {
+                    for (let num = 1; num <= 9; num++) {
+                        if (isValid(boardCopy, r, c, num)) {
+                            boardCopy[r][c] = num;
+                            solve();
+                            boardCopy[r][c] = 0;
+                            if (solutions >= limit) return; // 提前结束
+                        }
+                    }
+                    return; // 当前空格所有数字尝试完毕，回溯
+                }
             }
-            return puzzle;
         }
+        // 走到这里说明没有空格了，找到一解
+        solutions++;
+    }
+
+    solve();
+    return solutions;
+}
+        function createPuzzle(fullGrid, clues) {
+    const puzzle = fullGrid.map(row => [...row]);
+    const cells = [];
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            cells.push({ r, c });
+        }
+    }
+    shuffle(cells);
+
+    let removed = 81 - clues;
+    for (const { r, c } of cells) {
+        if (removed <= 0) break;
+        const backup = puzzle[r][c];
+        puzzle[r][c] = 0;
+
+        // 检查解的数量
+        const solCount = countSolutions(puzzle, 2);
+        if (solCount !== 1) {
+            // 不唯一或零解，恢复该格
+            puzzle[r][c] = backup;
+        } else {
+            removed--;
+        }
+    }
+    return puzzle;
+}
 
         function newGame() {
             clearInterval(timerInterval);
