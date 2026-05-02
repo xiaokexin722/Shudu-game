@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>专属数独 · 完全修复版</title>
+    <title>专属数独 · 可欣的水印</title>
     <style>
         :root {
             --bg: #f5f0e8; --card: #fff; --text: #333; --primary: #8b5e3c; --accent: #d4a574;
             --cell-bg: #faf7f2; --cell-selected: #e8d5c4; --cell-related: #f0e6d9;
             --cell-same-num: #e0d0c0; --cell-error: #ffd4d4; --cell-fixed: #5c3d2e;
-            --cell-hint: #2e7d32; --border: #ccc; --note-color: #888;
+            --cell-hint: #2e7d32; --cell-user: #b45f06; --border: #ccc; --note-color: #888;
         }
         .dark {
             --bg: #1a1a2e; --card: #16213e; --text: #eee; --primary: #e2a76f; --accent: #c08a5c;
             --cell-bg: #1f2b3a; --cell-selected: #2a3a4a; --cell-related: #243040;
             --cell-same-num: #2a3d50; --cell-error: #5c2020; --cell-fixed: #e2a76f;
-            --cell-hint: #66bb6a; --border: #333; --note-color: #aaa;
+            --cell-hint: #66bb6a; --cell-user: #f4c542; --border: #333; --note-color: #aaa;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -25,7 +25,12 @@
         }
         .container {
             background: var(--card); border-radius: 20px; padding: 20px; max-width: 420px;
-            width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.1); transition: background 0.3s;
+            width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; transition: background 0.3s;
+        }
+        .watermark {
+            position: absolute; bottom: 15px; right: 20px; font-size: 0.7rem;
+            color: var(--note-color); opacity: 0.35; pointer-events: none; user-select: none;
+            letter-spacing: 0.05em;
         }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .title { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
@@ -43,7 +48,7 @@
         .board {
             display: grid; grid-template-columns: repeat(9, 1fr); gap: 1px;
             background: var(--border); border: 2px solid var(--border); border-radius: 8px;
-            aspect-ratio: 1; margin-bottom: 12px;
+            aspect-ratio: 1; margin-bottom: 12px; position: relative;
         }
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
@@ -52,6 +57,7 @@
         }
         .cell.fixed { color: var(--cell-fixed); font-weight: 700; }
         .cell.hint { color: var(--cell-hint); font-weight: 600; }
+        .cell.user { color: var(--cell-user); font-weight: 600; }
         .cell.selected { background: var(--cell-selected); }
         .cell.selected::after {
             content: ''; position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px;
@@ -127,6 +133,7 @@
 </head>
 <body>
     <div class="container">
+        <div class="watermark">可欣 · xiaokexin722</div>
         <div class="header">
             <span class="title">🧩 专属数独</span>
             <div class="controls">
@@ -157,6 +164,7 @@
             <button class="btn" onclick="showHint()">💡 提示</button>
         </div>
     </div>
+
     <div class="modal" id="achievementsModal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeAchievements()">✕</button>
@@ -175,6 +183,7 @@
     </div>
 
     <script>
+        // ==================== 核心状态 ====================
         let board = [], solution = [], initialBoard = [];
         let selectedCell = null, difficulty = 'easy';
         let timerInterval = null, seconds = 0, mistakes = 0;
@@ -182,6 +191,13 @@
         let stats = { totalGames:0,wins:0,currentStreak:0,bestStreak:0,totalNotesUsed:0,totalHintsUsed:0 };
         window.lastWinMistakes=0;window.lastWinTime=0;window.lastWinDifficulty='';window.lastWinUndos=0;
         window.lastWinDarkMode=false;window.hasShared=false;window.completedDifficulties=new Set();
+
+        // 彩蛋格子 (1-indexed存储为0-indexed)
+        const easterEggs = {
+            '6-0': '🐱 小可爱在这里',   // 7月19日 -> (7,1)
+            '6-3': '✨ 可欣的水印 · 专属数独', // 7月22日 -> (7,4)
+            '6-5': '💝 在一起的每一天都是好日子' // 7月6日 -> (7,6)
+        };
 
         const ACHIEVEMENTS = [
             {id:'first_win',name:'初出茅庐',desc:'完成第一局',icon:'🌟',check:()=>stats.wins>=1},
@@ -197,6 +213,7 @@
         ];
         const DIFFICULTY_CLUES = { beginner:50, easy:44, medium:32, hard:26, expert:20 };
 
+        // 存储
         function saveStats() { localStorage.setItem('sudoku-stats',JSON.stringify(stats)); localStorage.setItem('sudoku-diffs',JSON.stringify([...window.completedDifficulties])); }
         function loadStats() { const s=localStorage.getItem('sudoku-stats'); if(s)stats=JSON.parse(s); const d=localStorage.getItem('sudoku-diffs'); if(d)window.completedDifficulties=new Set(JSON.parse(d)); if(localStorage.getItem('sudoku-shared'))window.hasShared=true; }
         function getUnlocked() { return ACHIEVEMENTS.filter(a=>a.check()).map(a=>a.id); }
@@ -210,6 +227,7 @@
         function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('sudoku-theme',document.body.classList.contains('dark')?'dark':'light'); }
         if(localStorage.getItem('sudoku-theme')==='dark')document.body.classList.add('dark');
 
+        // 数独生成 + 唯一解验证
         function generateCompleteBoard() { const g=Array(9).fill(null).map(()=>Array(9).fill(0)); fillGrid(g); return g; }
         function fillGrid(grid) {
             for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(grid[r][c]===0) {
@@ -263,20 +281,72 @@
         function updateTimer() { const m=Math.floor(seconds/60).toString().padStart(2,'0'),s=(seconds%60).toString().padStart(2,'0'); document.getElementById('timer').textContent=`⏱ ${m}:${s}`; }
         function updateMistakes() { document.getElementById('mistakes').textContent=`❌ ${mistakes}`; }
 
+        // 冲突检测
         function findConflicts() {
             const c=new Set();
             for(let r=0;r<9;r++) for(let cc=0;cc<9;cc++) { const v=board[r][cc]; if(v===0)continue; for(let c2=0;c2<9;c2++) if(c2!==cc&&board[r][c2]===v){c.add(`${r}-${cc}`);c.add(`${r}-${c2}`);} }
-            for(let c=0;c<9;c++) for(let rr=0;rr<9;rr++) { const v=board[rr][c]; if(v===0)continue; for(let r2=0;r2<9;r2++) if(r2!==rr&&board[r2][c]===v){c.add(`${rr}-${c}`);c.add(`${r2}-${c}`);} }
+            for(let rr=0;rr<9;rr++) for(let cc=0;cc<9;cc++) { const v=board[rr][cc]; if(v===0)continue; for(let r2=0;r2<9;r2++) if(r2!==rr&&board[r2][cc]===v){c.add(`${rr}-${cc}`);c.add(`${r2}-${cc}`);} }
             for(let br=0;br<3;br++)for(let bc=0;bc<3;bc++) for(let r1=br*3;r1<br*3+3;r1++)for(let c1=bc*3;c1<bc*3+3;c1++) { const v=board[r1][c1]; if(v===0)continue; for(let r2=br*3;r2<br*3+3;r2++)for(let c2=bc*3;c2<bc*3+3;c2++) if((r1!==r2||c1!==c2)&&board[r2][c2]===v){c.add(`${r1}-${c1}`);c.add(`${r2}-${c2}`);} }
             return c;
         }
         function checkErrors() { const c=findConflicts(); if(c.size===0){alert('✅ 没有冲突！');return;} render(c); setTimeout(()=>render(),800); }
+        
+        // 自动清理笔记
         function autoCleanNotes(row,col,num) {
             for(let c=0;c<9;c++){const k=`${row}-${c}`;if(notes[k]&&notes[k].has(num))notes[k].delete(num);}
             for(let r=0;r<9;r++){const k=`${r}-${col}`;if(notes[k]&&notes[k].has(num))notes[k].delete(num);}
             const br=Math.floor(row/3)*3,bc=Math.floor(col/3)*3;
             for(let r=br;r<br+3;r++)for(let c=bc;c<bc+3;c++){const k=`${r}-${c}`;if(notes[k]&&notes[k].has(num))notes[k].delete(num);}
         }
+
+        // 修复后的 showHint：自动清除冲突的玩家数字
+        function showHint() {
+            if(!selectedCell)return;
+            const {row,col}=selectedCell;
+            if(initialBoard[row][col]!==0) { alert('初始数字不用提示哦 😉'); return; }
+            if(board[row][col]===solution[row][col]) return; // 已经是正确的
+
+            const correctVal = solution[row][col];
+            const conflictsToDelete = [];
+
+            // 扫描同行、同列、同宫，找出非初始、非提示且等于correctVal的格子，准备清空
+            const relatedCells = [];
+            for(let i=0;i<9;i++) {
+                if(i!==col) relatedCells.push({r: row, c: i});
+                if(i!==row) relatedCells.push({r: i, c: col});
+            }
+            const br = Math.floor(row/3)*3, bc = Math.floor(col/3)*3;
+            for(let r=br; r<br+3; r++) for(let c=bc; c<bc+3; c++) {
+                if(r!==row || c!==col) relatedCells.push({r, c});
+            }
+
+            for(const {r,c} of relatedCells) {
+                if(board[r][c] === correctVal && initialBoard[r][c] === 0) {
+                    // 检查是否是提示数字（不可清），不过提示数字应该不会和正确答案冲突，但保险起见排除
+                    const isHint = history.some(h => h.row===r && h.col===c && h.isHint);
+                    if(!isHint) {
+                        conflictsToDelete.push({r, c, oldVal: board[r][c], oldNotes: notes[`${r}-${c}`] ? new Set(notes[`${r}-${c}`]) : null});
+                    }
+                }
+            }
+
+            // 将冲突的玩家数字清空，并记录到历史以便撤销
+            for(const item of conflictsToDelete) {
+                history.push({row: item.r, col: item.c, oldValue: item.oldVal, oldNotes: item.oldNotes, isHint: false});
+                board[item.r][item.c] = 0;
+                if(item.oldNotes) delete notes[`${item.r}-${item.c}`];
+            }
+
+            // 现在填入正确数字
+            history.push({row, col, oldValue: board[row][col], oldNotes: notes[`${row}-${col}`] ? new Set(notes[`${row}-${col}`]) : null, isHint: true});
+            board[row][col] = correctVal;
+            if(notes[`${row}-${col}`]) delete notes[`${row}-${col}`];
+            autoCleanNotes(row, col, correctVal);
+            stats.totalHintsUsed++;
+            render();
+            if(isComplete()){clearInterval(timerInterval);handleWin();}
+        }
+
         function render(highlightConflicts=null) {
             const be=document.getElementById('board'); be.innerHTML='';
             const conflicts=highlightConflicts||findConflicts();
@@ -288,6 +358,7 @@
                     cell.textContent=val;
                     if(initialBoard[r][c]!==0) cell.classList.add('fixed');
                     else if(history.some(h=>h.row===r&&h.col===c&&h.isHint)) cell.classList.add('hint');
+                    else cell.classList.add('user');
                     if(isConflict) cell.classList.add('conflict');
                 } else {
                     remaining++;
@@ -302,7 +373,18 @@
                     else if(selectedCell.row===r||selectedCell.col===c||(Math.floor(r/3)===Math.floor(selectedCell.row/3)&&Math.floor(c/3)===Math.floor(selectedCell.col/3))) cell.classList.add('related');
                     if(sv&&sv!==0&&val===sv&&!(selectedCell.row===r&&selectedCell.col===c)) cell.classList.add('same-num');
                 }
-                cell.addEventListener('click',()=>selectCell(r,c));
+                // 彩蛋长按
+                cell.addEventListener('pointerdown', function(e) {
+                    const eggKey = `${r}-${c}`;
+                    if(easterEggs[eggKey]) {
+                        this._pressTimer = setTimeout(() => {
+                            alert(easterEggs[eggKey]);
+                        }, 600);
+                    }
+                });
+                cell.addEventListener('pointerup', function(){ clearTimeout(this._pressTimer); });
+                cell.addEventListener('pointerleave', function(){ clearTimeout(this._pressTimer); });
+                cell.addEventListener('click', ()=>selectCell(r,c));
                 be.appendChild(cell);
             }
             document.getElementById('remaining').textContent=remaining;
@@ -330,7 +412,9 @@
         function eraseCell() {
             if(!selectedCell)return;
             const {row,col}=selectedCell;
-            if(initialBoard[row][col]!==0) return;
+            if(initialBoard[row][col]!==0) return; // 初始数字不可擦
+            const isHint = history.some(h=>h.row===row&&h.col===col&&h.isHint);
+            if(isHint) return; // 提示数字不可擦
             const key=`${row}-${col}`;
             if(board[row][col]===0&&(!notes[key]||notes[key].size===0))return;
             history.push({row,col,oldValue:board[row][col],oldNotes:notes[key]?new Set(notes[key]):null,isHint:false});
@@ -339,16 +423,7 @@
         }
         function undo() { if(!history.length)return; const last=history.pop(); board[last.row][last.col]=last.oldValue; const key=`${last.row}-${last.col}`; if(last.oldNotes)notes[key]=last.oldNotes; else delete notes[key]; render(); }
         function toggleNotes() { notesMode=!notesMode; const b=document.getElementById('notesToggle'); b.style.background=notesMode?'var(--accent)':''; b.textContent=notesMode?'✏️ 笔记中':'✏️ 笔记'; }
-        function showHint() {
-            if(!selectedCell)return;
-            const {row,col}=selectedCell;
-            if(initialBoard[row][col]!==0) { alert('初始数字不用提示哦 😉'); return; }
-            if(board[row][col]===solution[row][col])return;
-            history.push({row,col,oldValue:board[row][col],oldNotes:notes[`${row}-${col}`]?new Set(notes[`${row}-${col}`]):null,isHint:true});
-            board[row][col]=solution[row][col]; if(notes[`${row}-${col}`])delete notes[`${row}-${col}`];
-            autoCleanNotes(row,col,solution[row][col]); stats.totalHintsUsed++;
-            render(); if(isComplete()){clearInterval(timerInterval);handleWin();}
-        }
+        
         function isComplete() { for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(board[r][c]!==solution[r][c])return false; return true; }
         function handleWin() {
             window.lastWinMistakes=mistakes;window.lastWinTime=seconds;window.lastWinDifficulty=difficulty;
